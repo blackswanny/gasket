@@ -5,6 +5,21 @@ import Log from '@gasket/log';
 import placeholderReducers from './placeholder-reducers';
 
 /**
+ * If next-redux-wrapper v6 is installed, we will do some extra fixup
+ */
+let nextReduxHydrate;
+try {
+  const { HYDRATE } = require('next-redux-wrapper');
+  nextReduxHydrate = (state, action) => {
+    if (action.type === HYDRATE) {
+      return { ...state, ...action.payload };
+    }
+  };
+} catch (e) {
+  // ignore
+}
+
+/**
  * Compose the reducer
  *
  * @param {object} allReducers - Map of identifiers and reducers
@@ -94,12 +109,17 @@ export default function configureMakeStore(
 
     const preloadedState = { ...initialState, ...state };
     const allReducers = { ...reducers, ...placeholderReducers(reducers, preloadedState) };
-    const reducer = prepareReducer(allReducers, rootReducer);
+    const reducer = prepareReducer(allReducers, rootReducer || nextReduxHydrate);
     const store = createStore(reducer, { ...initialState, ...state }, enhancer);
 
     if (postCreate) postCreate(store);
 
     return store;
+  }
+
+  if (nextReduxHydrate) {
+    const { createWrapper } = require('next-redux-wrapper');
+    makeStore.nextRedux = createWrapper(({ req }) => makeStore({}, { req }));
   }
 
   return makeStore;
